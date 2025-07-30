@@ -11,60 +11,68 @@ import TaskItem from "./components/TaskItem";
 import AddTask from "./components/AddTask";
 import { useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
 
 export default function App() {
   const [items, setItems] = useState([]);
 
+  const fetchTasks = async () => {
+    try {
+      const response = await axios.get("http://localhost:3000/api/tasks");
+      setItems(response.data);
+    } catch (error) {
+      console.error("Error fetching tasks from server: ", error);
+    }
+  };
+
+  const onAddTaskPress = async (task) => {
+    try {
+      console.log(task);
+      const response = await axios.post("http://localhost:3000/api/tasks", {
+        title: task,
+        isCompleted: false,
+      });
+      setItems((items) => [...items, response.data]);
+    } catch (error) {
+      console.error("Error adding task to server: ", error);
+    }
+  };
+
   const handleTaskPressed = async (index) => {
-    let updatedTasks = [...items];
-    updatedTasks[index].isCompleted = !updatedTasks[index].isCompleted;
-    updatedTasks.push(updatedTasks.splice(index, 1)[0]);
-    setItems(updatedTasks);
-
-    try {
-      await AsyncStorage.setItem("task-arr", JSON.stringify(updatedTasks));
-    } catch (error) {
-      console.error("Error saving tasks to AsyncStorage: ", error);
-    }
-  };
-
-  const onAddTaskPress = async (text) => {
-    const updatedTasks = [...items, { text: text, isCompleted: false }];
-    setItems(updatedTasks);
-
-    try {
-      await AsyncStorage.setItem("task-arr", JSON.stringify(updatedTasks));
-    } catch (error) {
-      console.error("Error saving tasks to AsyncStorage: ", error);
-    }
-  };
-
-  const onDeleteTaskPress = async (index) => {
     const updatedTasks = [...items];
-    updatedTasks.splice(index, 1);
+    updatedTasks[index].isCompleted = !updatedTasks[index].isCompleted;
+    // updatedTasks.push(updatedTasks.splice(index, 1)[0]);
     setItems(updatedTasks);
-
+    console.log(
+      updatedTasks[index],
+      updatedTasks[index].id,
+      updatedTasks[index].isCompleted
+    );
     try {
-      await AsyncStorage.setItem("task-arr", JSON.stringify(updatedTasks));
+      await axios.put(
+        `http://localhost:3000/api/tasks/${updatedTasks[index].id}:id`,
+        {
+          id: updatedTasks[index].id,
+          isCompleted: updatedTasks[index].isCompleted,
+          title: updatedTasks[index].title,
+        }
+      );
     } catch (error) {
-      console.error("Error saving tasks to AsyncStorage: ", error);
+      console.error("Error updating task on server: ", error);
+    }
+  };
+
+  const onDeleteTaskPress = async (id) => {
+    try {
+      await axios.delete(`http://localhost:3000/api/tasks/${id}:id`);
+      setItems((items) => items.filter((item) => item.id !== id));
+    } catch (error) {
+      console.error("Error deleting task from server: ", error);
     }
   };
 
   useEffect(() => {
-    const loadTasks = async () => {
-      try {
-        const storedTasks = await AsyncStorage.getItem("task-arr");
-        if (storedTasks != null) {
-          updatedTasks = JSON.parse(storedTasks);
-          setItems([...updatedTasks]);
-        }
-      } catch (error) {
-        console.error("Error loading tasks from AsyncStorage: ", error);
-      }
-    };
-
-    loadTasks();
+    fetchTasks();
   }, []);
 
   return (
@@ -78,10 +86,10 @@ export default function App() {
             data={items}
             renderItem={({ item, index }) => (
               <TaskItem
-                text={item.text}
+                text={item.title}
                 key={index}
                 onCompletedPress={() => handleTaskPressed(index)}
-                onDeletePress={() => onDeleteTaskPress(index)}
+                onDeletePress={() => onDeleteTaskPress(item.id)}
                 isCompleted={item.isCompleted}
               ></TaskItem>
             )}
